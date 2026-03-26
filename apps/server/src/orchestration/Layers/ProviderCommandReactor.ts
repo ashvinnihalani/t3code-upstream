@@ -12,7 +12,7 @@ import {
   type TurnId,
 } from "@t3tools/contracts";
 import { Cache, Cause, Duration, Effect, Equal, Layer, Option, Schema, Stream } from "effect";
-import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
+import { type DrainableWorker, makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
 
 import { resolveThreadWorkspaceCwd } from "../../checkpointing/Utils.ts";
 import { GitCore } from "../../git/Services/GitCore.ts";
@@ -787,7 +787,19 @@ const make = Effect.gen(function* () {
       }),
     );
 
-  const worker = yield* makeDrainableWorker(processDomainEventSafely);
+  const workersByThreadId = new Map<ThreadId, DrainableWorker<ProviderIntentEvent>>();
+
+  const workerForThread = (threadId: ThreadId) =>
+    Effect.gen(function* () {
+      const existing = workersByThreadId.get(threadId);
+      if (existing) {
+        return existing;
+      }
+
+      const created = yield* makeDrainableWorker(processDomainEventSafely);
+      workersByThreadId.set(threadId, created);
+      return created;
+    });
 
   const start: ProviderCommandReactorShape["start"] = Effect.fn("start")(function* () {
     const processEvent = Effect.fn("processEvent")(function* (event: OrchestrationEvent) {
@@ -799,6 +811,7 @@ const make = Effect.gen(function* () {
         event.type === "thread.user-input-response-requested" ||
         event.type === "thread.session-stop-requested"
       ) {
+        const worker = yield* workerForThread(event.payload.threadId);
         return yield* worker.enqueue(event);
       }
     });
@@ -810,7 +823,13 @@ const make = Effect.gen(function* () {
 
   return {
     start,
-    drain: worker.drain,
+    drain: Effect.gen(function* () {
+      const workers = Array.from(workersByThreadId.values());
+      yield* Effect.forEach(workers, (worker) => worker.drain, {
+        concurrency: "unbounded",
+        discard: true,
+      });
+    }),
   } satisfies ProviderCommandReactorShape;
 });
 
