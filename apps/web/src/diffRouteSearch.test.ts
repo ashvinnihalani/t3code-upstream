@@ -1,6 +1,7 @@
+import { TurnId } from "@t3tools/contracts";
 import { describe, expect, it } from "vitest";
 
-import { parseDiffRouteSearch } from "./diffRouteSearch";
+import { diffRouteSearchEqual, parseDiffRouteSearch } from "./diffRouteSearch";
 
 describe("parseDiffRouteSearch", () => {
   it("parses valid diff search values", () => {
@@ -70,5 +71,57 @@ describe("parseDiffRouteSearch", () => {
     expect(parsed).toEqual({
       diff: "1",
     });
+  });
+});
+
+describe("diffRouteSearchEqual", () => {
+  const turnId = TurnId.make("turn-1");
+  const otherTurnId = TurnId.make("turn-2");
+
+  it("matches identical diff search state", () => {
+    expect(
+      diffRouteSearchEqual(
+        {
+          diff: "1",
+          diffTurnId: turnId,
+          diffFilePath: "src/app.ts",
+        },
+        {
+          diff: "1",
+          diffTurnId: turnId,
+          diffFilePath: "src/app.ts",
+        },
+      ),
+    ).toBe(true);
+  });
+
+  it("treats missing and differing fields as unequal", () => {
+    expect(diffRouteSearchEqual(undefined, {})).toBe(true);
+    expect(
+      diffRouteSearchEqual(
+        {
+          diff: "1",
+          diffTurnId: turnId,
+        },
+        {
+          diff: "1",
+          diffTurnId: otherTurnId,
+        },
+      ),
+    ).toBe(false);
+    expect(
+      diffRouteSearchEqual(
+        {
+          diff: "1",
+          diffTurnId: turnId,
+          diffFilePath: "src/app.ts",
+        },
+        {
+          diff: "1",
+          diffTurnId: turnId,
+          diffFilePath: "src/other.ts",
+        },
+      ),
+    ).toBe(false);
   });
 });

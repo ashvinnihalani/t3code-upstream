@@ -1,5 +1,15 @@
 import { createFileRoute, retainSearchParams, useNavigate } from "@tanstack/react-router";
-import { Suspense, lazy, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import ChatView from "../components/ChatView";
 import { threadHasStarted } from "../components/ChatView.logic";
@@ -19,6 +29,10 @@ import {
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { selectEnvironmentState, selectThreadExistsByRef, useStore } from "../store";
 import { createThreadSelectorByRef } from "../storeSelectors";
+import {
+  createThreadDiffRouteMemoryState,
+  stepThreadDiffRouteMemory,
+} from "../threadDiffRouteMemory";
 import { resolveThreadRouteRef, buildThreadRouteParams } from "../threadRoutes";
 import { Sheet, SheetPopup } from "../components/ui/sheet";
 import { Sidebar, SidebarInset, SidebarProvider, SidebarRail } from "~/components/ui/sidebar";
@@ -194,6 +208,12 @@ function ChatThreadRouteView() {
   const diffOpen = search.diff === "1";
   const shouldUseDiffSheet = useMediaQuery(DIFF_INLINE_LAYOUT_MEDIA_QUERY);
   const currentThreadKey = threadRef ? `${threadRef.environmentId}:${threadRef.threadId}` : null;
+  const diffRouteMemoryRef = useRef(
+    createThreadDiffRouteMemoryState({
+      currentThreadKey,
+      currentSearch: search,
+    }),
+  );
   const [diffPanelMountState, setDiffPanelMountState] = useState(() => ({
     threadKey: currentThreadKey,
     hasOpenedDiff: diffOpen,
@@ -237,6 +257,26 @@ function ChatThreadRouteView() {
       },
     });
   }, [markDiffOpened, navigate, threadRef]);
+
+  useLayoutEffect(() => {
+    const transition = stepThreadDiffRouteMemory(diffRouteMemoryRef.current, {
+      currentThreadKey,
+      currentSearch: search,
+    });
+    diffRouteMemoryRef.current = transition.nextState;
+
+    if (threadRef && transition.restoredSearch) {
+      void navigate({
+        to: "/$environmentId/$threadId",
+        params: buildThreadRouteParams(threadRef),
+        replace: true,
+        search: (previous) => {
+          const rest = stripDiffSearchParams(previous);
+          return { ...rest, ...transition.restoredSearch };
+        },
+      });
+    }
+  }, [currentThreadKey, navigate, search, threadRef]);
 
   useEffect(() => {
     if (!threadRef || !bootstrapComplete) {
