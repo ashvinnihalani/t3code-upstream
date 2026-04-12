@@ -1240,12 +1240,14 @@ const make = Effect.fn("make")(function* () {
       }),
     );
 
-  const worker = yield* makeDrainableWorker(processInputSafely);
+  const worker = yield* makeDrainableWorker((_threadId: ThreadId, input: RuntimeIngestionInput) =>
+    processInputSafely(input),
+  );
 
   const start: ProviderRuntimeIngestionShape["start"] = Effect.fn("start")(function* () {
     yield* Effect.forkScoped(
       Stream.runForEach(providerService.streamEvents, (event) =>
-        worker.enqueue({ source: "runtime", event }),
+        worker.enqueue(event.threadId, { source: "runtime", event }),
       ),
     );
     yield* Effect.forkScoped(
@@ -1253,7 +1255,7 @@ const make = Effect.fn("make")(function* () {
         if (event.type !== "thread.turn-start-requested") {
           return Effect.void;
         }
-        return worker.enqueue({ source: "domain", event });
+        return worker.enqueue(event.payload.threadId, { source: "domain", event });
       }),
     );
   });

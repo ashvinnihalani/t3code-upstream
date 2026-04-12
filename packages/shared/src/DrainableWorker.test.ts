@@ -14,7 +14,7 @@ describe("makeDrainableWorker", () => {
         const secondStarted = yield* Deferred.make<void>();
         const releaseSecond = yield* Deferred.make<void>();
 
-        const worker = yield* makeDrainableWorker((item: string) =>
+        const worker = yield* makeDrainableWorker((key: string, item: string) =>
           Effect.gen(function* () {
             if (item === "first") {
               yield* Deferred.succeed(firstStarted, undefined).pipe(Effect.orDie);
@@ -26,11 +26,11 @@ describe("makeDrainableWorker", () => {
               yield* Deferred.await(releaseSecond);
             }
 
-            processed.push(item);
+            processed.push(`${key}:${item}`);
           }),
         );
 
-        yield* worker.enqueue("first");
+        yield* worker.enqueue("thread-1", "first");
         yield* Deferred.await(firstStarted);
 
         const drained = yield* Deferred.make<void>();
@@ -40,7 +40,7 @@ describe("makeDrainableWorker", () => {
           ),
         );
 
-        yield* worker.enqueue("second");
+        yield* worker.enqueue("thread-1", "second");
         yield* Deferred.succeed(releaseFirst, undefined);
         yield* Deferred.await(secondStarted);
 
@@ -49,7 +49,42 @@ describe("makeDrainableWorker", () => {
         yield* Deferred.succeed(releaseSecond, undefined);
         yield* Deferred.await(drained);
 
-        expect(processed).toEqual(["first", "second"]);
+        expect(processed).toEqual(["thread-1:first", "thread-1:second"]);
+      }),
+    ),
+  );
+
+  it.live("does not let one blocked key stop another key from processing", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const releaseFirst = yield* Deferred.make<void>();
+        const secondProcessed = yield* Deferred.make<void>();
+        const processed: string[] = [];
+
+        const worker = yield* makeDrainableWorker((key: string, item: string) =>
+          Effect.gen(function* () {
+            if (key === "thread-1") {
+              yield* Deferred.await(releaseFirst);
+            }
+
+            processed.push(`${key}:${item}`);
+
+            if (key === "thread-2") {
+              yield* Deferred.succeed(secondProcessed, undefined).pipe(Effect.orDie);
+            }
+          }),
+        );
+
+        yield* worker.enqueue("thread-1", "blocked");
+        yield* worker.enqueue("thread-2", "ready");
+        yield* Deferred.await(secondProcessed);
+
+        expect(processed).toEqual(["thread-2:ready"]);
+
+        yield* Deferred.succeed(releaseFirst, undefined);
+        yield* worker.drain;
+
+        expect(processed).toEqual(["thread-2:ready", "thread-1:blocked"]);
       }),
     ),
   );

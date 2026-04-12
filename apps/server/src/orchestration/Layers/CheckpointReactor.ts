@@ -792,7 +792,9 @@ const make = Effect.gen(function* () {
       }),
     );
 
-  const worker = yield* makeDrainableWorker(processInputSafely);
+  const worker = yield* makeDrainableWorker((_threadId: ThreadId, input: ReactorInput) =>
+    processInputSafely(input),
+  );
 
   const start: CheckpointReactorShape["start"] = Effect.fn("start")(function* () {
     yield* Effect.forkScoped(
@@ -805,7 +807,7 @@ const make = Effect.gen(function* () {
         ) {
           return Effect.void;
         }
-        return worker.enqueue({ source: "domain", event });
+        return worker.enqueue(event.payload.threadId, { source: "domain", event });
       }),
     );
 
@@ -814,7 +816,7 @@ const make = Effect.gen(function* () {
         if (event.type !== "turn.started" && event.type !== "turn.completed") {
           return Effect.void;
         }
-        return worker.enqueue({ source: "runtime", event });
+        return worker.enqueue(event.threadId, { source: "runtime", event });
       }),
     );
   });
