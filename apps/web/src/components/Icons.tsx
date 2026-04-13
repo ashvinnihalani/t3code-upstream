@@ -34,6 +34,12 @@ export const TraeIcon: Icon = (props) => (
   </svg>
 );
 
+export const KiroIcon: Icon = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 3.5A1.5 1.5 0 0 1 5.5 2h1A1.5 1.5 0 0 1 8 3.5v7.178l7.116-7.826A1.5 1.5 0 0 1 16.226 2h2.3c1.32 0 2.01 1.57 1.115 2.544L12.3 12l7.34 7.456c.887.901.2 2.544-1.064 2.544h-2.304a1.5 1.5 0 0 1-1.104-.485L8 13.9v6.6A1.5 1.5 0 0 1 6.5 22h-1A1.5 1.5 0 0 1 4 20.5z" />
+  </svg>
+);
+
 export const VisualStudioCode: Icon = (props) => {
   const id = useId();
   const maskId = `${id}-vscode-a`;
