@@ -1,6 +1,6 @@
 import { scopeProjectRef, scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime";
 import type { GitStatusResult } from "@t3tools/contracts";
-import { CloudIcon, GitPullRequestIcon, TerminalIcon } from "lucide-react";
+import { CloudIcon, CloudOffIcon, GitPullRequestIcon, TerminalIcon } from "lucide-react";
 import { useMemo } from "react";
 import { usePrimaryEnvironmentId } from "../environments/primary";
 import {
@@ -11,7 +11,11 @@ import { useGitStatus } from "../lib/gitStatusState";
 import { type AppState, selectProjectByRef, useStore } from "../store";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
 import { useUiStateStore } from "../uiStateStore";
-import { resolveThreadStatusPill, type ThreadStatusPill } from "./Sidebar.logic";
+import {
+  isRemoteEnvironmentDisconnected,
+  resolveThreadStatusPill,
+  type ThreadStatusPill,
+} from "./Sidebar.logic";
 import type { SidebarThreadSummary } from "../types";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
@@ -197,13 +201,24 @@ export function ThreadRowTrailingStatus({ thread }: { thread: SidebarThreadSumma
   const remoteEnvLabel = useSavedEnvironmentRuntimeStore(
     (state) => state.byId[thread.environmentId]?.descriptor?.label ?? null,
   );
+  const remoteEnvironmentConnectionState = useSavedEnvironmentRuntimeStore(
+    (state) => state.byId[thread.environmentId]?.connectionState ?? "disconnected",
+  );
   const remoteEnvSavedLabel = useSavedEnvironmentRegistryStore(
     (state) => state.byId[thread.environmentId]?.label ?? null,
   );
   const threadEnvironmentLabel = isRemoteThread
     ? (remoteEnvLabel ?? remoteEnvSavedLabel ?? "Remote")
     : null;
+  const isRemoteThreadDisconnected = isRemoteEnvironmentDisconnected([
+    remoteEnvironmentConnectionState,
+  ]);
   const terminalStatus = terminalStatusFromRunningIds(runningTerminalIds);
+  const remoteThreadTooltip = threadEnvironmentLabel
+    ? `${isRemoteThreadDisconnected ? "Remote environment disconnected" : "Remote environment"}: ${threadEnvironmentLabel}`
+    : isRemoteThreadDisconnected
+      ? "Remote environment disconnected"
+      : "Remote environment";
 
   if (!terminalStatus && !isRemoteThread) {
     return null;
@@ -226,14 +241,18 @@ export function ThreadRowTrailingStatus({ thread }: { thread: SidebarThreadSumma
           <TooltipTrigger
             render={
               <span
-                aria-label={threadEnvironmentLabel ?? "Remote"}
+                aria-label={remoteThreadTooltip}
                 className="inline-flex items-center justify-center"
               />
             }
           >
-            <CloudIcon className="size-3 text-muted-foreground/60" />
+            {isRemoteThreadDisconnected ? (
+              <CloudOffIcon className="size-3 text-destructive" />
+            ) : (
+              <CloudIcon className="size-3 text-muted-foreground/60" />
+            )}
           </TooltipTrigger>
-          <TooltipPopup side="top">{threadEnvironmentLabel}</TooltipPopup>
+          <TooltipPopup side="top">{remoteThreadTooltip}</TooltipPopup>
         </Tooltip>
       ) : null}
     </span>

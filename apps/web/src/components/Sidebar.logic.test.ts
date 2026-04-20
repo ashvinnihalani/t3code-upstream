@@ -9,6 +9,7 @@ import {
   getVisibleThreadsForProject,
   getProjectSortTimestamp,
   hasUnseenCompletion,
+  isRemoteEnvironmentDisconnected,
   isContextMenuPointerDown,
   orderItemsByPreferredIds,
   resolveProjectStatusIndicator,
@@ -57,6 +58,20 @@ describe("hasUnseenCompletion", () => {
         session: null,
       }),
     ).toBe(true);
+  });
+});
+
+describe("isRemoteEnvironmentDisconnected", () => {
+  it("returns true when every remote environment is disconnected", () => {
+    expect(isRemoteEnvironmentDisconnected(["disconnected", "error"])).toBe(true);
+  });
+
+  it("returns false when any remote environment is still connected", () => {
+    expect(isRemoteEnvironmentDisconnected(["disconnected", "connected"])).toBe(false);
+  });
+
+  it("returns false while a remote environment is still connecting", () => {
+    expect(isRemoteEnvironmentDisconnected(["connecting"])).toBe(false);
   });
 });
 

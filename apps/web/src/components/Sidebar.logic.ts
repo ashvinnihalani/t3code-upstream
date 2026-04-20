@@ -6,6 +6,7 @@ import {
   toSortableTimestamp,
   type ThreadSortInput,
 } from "../lib/threadSort";
+import type { SavedEnvironmentConnectionState } from "../environments/runtime/catalog";
 import type { SidebarThreadSummary, Thread } from "../types";
 import { cn } from "../lib/utils";
 import { isLatestTurnSettled } from "../session-logic";
@@ -409,6 +410,18 @@ export function resolveProjectStatusIndicator(
   }
 
   return highestPriorityStatus;
+}
+
+export function isRemoteEnvironmentDisconnected(
+  connectionStates: readonly SavedEnvironmentConnectionState[],
+): boolean {
+  if (connectionStates.length === 0) {
+    return false;
+  }
+
+  return connectionStates.every(
+    (connectionState) => connectionState === "disconnected" || connectionState === "error",
+  );
 }
 
 export function getVisibleThreadsForProject<T extends Pick<Thread, "id">>(input: {
