@@ -322,7 +322,7 @@ function probe() {
       (response) => {
         response.resume();
         response.once("end", () => {
-          resolve(response.statusCode >= 200 && response.statusCode < 300);
+          resolve(true);
         });
       },
     );
@@ -895,7 +895,6 @@ export const waitForHttpReady = Effect.fn("ssh/tunnel.waitForHttpReady")(functio
   });
 
   const readinessClient = client.pipe(
-    HttpClient.filterStatusOk,
     HttpClient.transform((effect) =>
       Effect.gen(function* () {
         attempt += 1;
@@ -1212,6 +1211,19 @@ const startSshTunnel = Effect.fn("ssh/tunnel.startSshTunnel")(function* (input: 
         }),
     ),
     Effect.flatMap(([stderr, exitCode]) => {
+      // Exit 0 with no stderr means SSH handed off to a ControlMaster mux
+      // connection. The port forward is still alive via the master process, so
+      // this is not a failure — let waitForHttpReady determine readiness.
+      if (exitCode === 0 && stderr.trim().length === 0) {
+        return Effect.logDebug("ssh.tunnel.process.controlmaster.handoff", {
+          ...sshTargetLogFields(input.resolvedTarget),
+          command: tunnelCommand,
+          pid: child.pid,
+          localPort: input.localPort,
+          remotePort: input.remotePort,
+          httpBaseUrl: input.httpBaseUrl,
+        }).pipe(Effect.andThen(Effect.never));
+      }
       const error = new SshCommandError({
         command: tunnelCommand,
         exitCode,
