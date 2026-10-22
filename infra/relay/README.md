@@ -76,6 +76,10 @@ dependencies represented at their boundary rather than mocking internal behavior
 
 ## Deployment
 
+To run the relay on your own server without Cloudflare, see
+[Self-hosted T3 Connect](../../docs/operations/self-hosted-connect.md). The rest of this section
+covers the hosted Cloudflare deployment.
+
 The relay deploys with the Alchemy CLI (`vp run --filter t3code-relay deploy` is `alchemy deploy`
 in this directory):
 

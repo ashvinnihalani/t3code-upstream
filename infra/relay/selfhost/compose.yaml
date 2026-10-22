@@ -1,0 +1,52 @@
+# Self-hosted T3 Connect: Postgres, the relay, and Caddy for TLS.
+# See docs/operations/self-hosted-connect.md.
+services:
+  postgres:
+    image: postgres:16.10-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: relay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: relay
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "relay"]
+      interval: 5s
+      retries: 20
+
+  relay:
+    build:
+      context: ../../..
+      dockerfile: infra/relay/selfhost/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://relay:${POSTGRES_PASSWORD}@postgres:5432/relay
+      RELAY_PUBLIC_URL: https://${RELAY_DOMAIN:?set RELAY_DOMAIN in .env}
+      RELAY_TUNNEL_DOMAIN: ${RELAY_TUNNEL_DOMAIN:?set RELAY_TUNNEL_DOMAIN in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.10.2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      RELAY_DOMAIN: ${RELAY_DOMAIN}
+      RELAY_TUNNEL_DOMAIN: ${RELAY_TUNNEL_DOMAIN}
+      APP_DOMAIN: ${APP_DOMAIN:-}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${WEB_APP_DIR:-./web}:/srv/app:ro
+      - caddy:/data
+    depends_on:
+      - relay
+
+volumes:
+  postgres:
+  caddy:

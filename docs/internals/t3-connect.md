@@ -155,6 +155,30 @@ while the pin installs. Every binary needs `CLOUDFLARED_MIN_VERSION`, the oldest
 release that accepts every flag the connector is started with. Raise it whenever
 a new flag is added.
 
+## Self-hosted relays bring their own tunnel
+
+A [self-hosted relay](../operations/self-hosted-connect.md) runs the same
+services on Node and Postgres
+([`main.ts`](../../infra/relay/src/selfhost/main.ts)). It keeps the managed
+endpoint provider's allocation, recovery, and cleanup logic and swaps only the
+tunnel and DNS clients for a Postgres table and a wildcard record
+([`SelfHostedTunnels.ts`](../../infra/relay/src/selfhost/SelfHostedTunnels.ts)).
+
+The provider tags runtime configs with the tunnel client's
+`runtimeProviderKind`, `t3_relay` here, and the server runs the in-process
+connector for those instead of `cloudflared`. Endpoints keep providerKind
+`cloudflare_tunnel`: clients read it as "relay-managed", and the relay's link
+and connect checks gate on it. Do not branch on the endpoint kind to tell the two
+tunnels apart; the runtime kind is the only difference.
+
+Each environment holds one WebSocket to the gateway and multiplexes request
+streams over it ([`tunnelMux.ts`](../../packages/shared/src/tunnelMux.ts)).
+Networks that block `cloudflared` usually allow one HTTPS connection through a
+proxy, and requests then skip a per-request handshake. The gateway forwards the
+original `Host` and strips the reverse proxy's `X-Forwarded-Host`/`-Proto`,
+which the environment treats as signs of a request that did not come through its
+tunnel. The connector only dials the loopback origin the gateway names.
+
 ## OAuth traps
 
 Interactive clients and the headless CLI use the same Clerk application but

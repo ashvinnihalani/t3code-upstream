@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.vite-plus
+**/.t3
+.git
+.repos
+.env
+.env.*
+infra/relay/selfhost/.env
+apps/*/build
+apps/mobile/ios
+apps/mobile/android

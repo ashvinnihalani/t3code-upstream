@@ -1,0 +1,33 @@
+{
+	email {$ACME_EMAIL}
+	# Certificates for tunnel hostnames are issued on first use, and only for
+	# hostnames the relay has assigned to a linked environment.
+	on_demand_tls {
+		ask http://relay:8788/tls-ask
+	}
+}
+
+{$RELAY_DOMAIN} {
+	# Desktop connectors dial this one path; everything else is the relay API.
+	@connector path /v1/tunnel/connect
+	reverse_proxy @connector relay:8788
+	reverse_proxy relay:8787
+}
+
+# The hosted web app, used for sign-in from the CLI (`t3 connect login`).
+# Leave APP_DOMAIN unset to skip it.
+{$APP_DOMAIN:app.invalid} {
+	root * /srv/app
+	try_files {path} /index.html
+	file_server
+}
+
+# Every environment's tunnel hostname, <label>.{$RELAY_TUNNEL_DOMAIN}.
+https:// {
+	tls {
+		on_demand
+	}
+	reverse_proxy relay:8788 {
+		flush_interval -1
+	}
+}
