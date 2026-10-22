@@ -115,6 +115,7 @@ import {
   managedEndpointRuntimeConfigsMatch,
   parseManagedEndpointLocalOrigin,
   requestAbsoluteUrl,
+  isManagedTunnelRuntime,
 } from "./linkChecks.ts";
 import { desktopUpdateRestartPending, pendingUpdateHandoffExists } from "./updateHandoff.ts";
 
@@ -731,7 +732,7 @@ const make = Effect.gen(function* () {
         ]);
         if (Option.isNone(runtimeBytes)) return false;
         const config = Option.getOrNull(decodeRuntimeConfig(bytesToString(runtimeBytes.value)));
-        if (config === null || config.providerKind !== "cloudflare_tunnel") return false;
+        if (config === null || !isManagedTunnelRuntime(config.providerKind)) return false;
         // With the marker required, only a config the relay already confirmed on
         // this port may start. Without it, startup is falling back after the
         // relay stayed unreachable: an unconfirmed origin may send traffic to a
@@ -775,7 +776,7 @@ const make = Effect.gen(function* () {
       // payload cannot stop a healthy tunnel on its way to a 503.
       if (
         payload.endpointRuntime !== null &&
-        payload.endpointRuntime.providerKind !== "cloudflare_tunnel"
+        !isManagedTunnelRuntime(payload.endpointRuntime.providerKind)
       ) {
         return yield* new CloudLinkEndpointUnavailableError({
           reason: "runtime-not-started",
@@ -1025,7 +1026,7 @@ const make = Effect.gen(function* () {
     }
 
     const config = Option.getOrNull(decodeRuntimeConfig(bytesToString(runtimeConfig.value)));
-    if (config?.providerKind !== "cloudflare_tunnel") {
+    if (config === null || !isManagedTunnelRuntime(config.providerKind)) {
       return { status: "not_linked" as const };
     }
 
@@ -1153,7 +1154,7 @@ const make = Effect.gen(function* () {
         error.rejection === "unauthorized" ? markLinkRevoked(credential, error) : Effect.void,
       ),
     );
-    if (recovered.endpointRuntime.providerKind !== "cloudflare_tunnel") {
+    if (!isManagedTunnelRuntime(recovered.endpointRuntime.providerKind)) {
       return yield* new CloudLinkInternalError({ operation: "unsupported-recovered-tunnel" });
     }
 
@@ -1192,7 +1193,7 @@ const make = Effect.gen(function* () {
   const applyRelayConfig = Effect.fn("environment.cloud.relayConfig")(
     function* (payload: RelayEnvironmentConfigRequest) {
       const result = yield* applyCloudRelayConfig(payload);
-      if (payload.endpointRuntime?.providerKind === "cloudflare_tunnel") {
+      if (payload.endpointRuntime && isManagedTunnelRuntime(payload.endpointRuntime.providerKind)) {
         const address = httpServer.address;
         if (typeof address === "string" || !("port" in address)) {
           return yield* new CloudLinkInternalError({ operation: "resolve-server-origin" });

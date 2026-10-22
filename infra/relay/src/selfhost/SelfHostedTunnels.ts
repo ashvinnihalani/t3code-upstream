@@ -19,6 +19,7 @@ import {
   type ManagedEndpointTunnel,
   type ManagedEndpointTunnelClient,
   ManagedEndpointTunnelClientError,
+  type ManagedEndpointTunnelListRequest,
 } from "../environments/ManagedEndpointProvider.ts";
 import { relaySelfHostedTunnels } from "./schema.ts";
 import type { TunnelAuthResult, TunnelRegistration } from "./TunnelGateway.ts";
@@ -32,6 +33,8 @@ export interface TunnelGatewayNotifier {
 }
 
 type TunnelRow = typeof relaySelfHostedTunnels.$inferSelect;
+type TunnelClient = ManagedEndpointTunnelClient["Service"];
+type TunnelIngressConfig = Parameters<TunnelClient["putConfiguration"]>[1];
 
 function toManagedEndpointTunnel(row: TunnelRow): ManagedEndpointTunnel {
   return {
@@ -130,8 +133,8 @@ export const make = Effect.fnUntraced(function* (options: {
         ),
         clientError("get", { tunnelId }),
       ),
-    list: (request) =>
-      Effect.gen(function* () {
+    list: Effect.fn("SelfHostedTunnels.list")(
+      function* (request: ManagedEndpointTunnelListRequest) {
         const conditions: Array<SQL | undefined> = [isNull(t.deletedAt)];
         if (request.name !== undefined) conditions.push(eq(t.name, request.name));
         if (request.includePrefix !== undefined) {
@@ -162,9 +165,14 @@ export const make = Effect.fnUntraced(function* (options: {
           result: rows.map(toManagedEndpointTunnel),
           resultInfo: { page, perPage, totalCount: total[0]?.value ?? 0 },
         };
-      }).pipe(clientError("list", request.name === undefined ? {} : { tunnelName: request.name })),
-    create: (request) =>
-      Effect.gen(function* () {
+      },
+      (effect, request) =>
+        effect.pipe(
+          clientError("list", request.name === undefined ? {} : { tunnelName: request.name }),
+        ),
+    ),
+    create: Effect.fn("SelfHostedTunnels.create")(
+      function* (request: { readonly name: string }) {
         const createdAt = yield* nowIso;
         const row: TunnelRow = {
           id: NodeCrypto.randomUUID(),
@@ -179,9 +187,11 @@ export const make = Effect.fnUntraced(function* (options: {
         };
         yield* db.insert(t).values(row);
         return toManagedEndpointTunnel(row);
-      }).pipe(clientError("create", { tunnelName: request.name })),
-    putConfiguration: (tunnelId, config) =>
-      Effect.gen(function* () {
+      },
+      (effect, request) => effect.pipe(clientError("create", { tunnelName: request.name })),
+    ),
+    putConfiguration: Effect.fn("SelfHostedTunnels.putConfiguration")(
+      function* (tunnelId: string, config: TunnelIngressConfig) {
         const rule = config.ingress.find((candidate) => candidate.hostname !== undefined);
         const origin = rule ? parseOriginService(rule.service) : null;
         if (rule?.hostname === undefined || origin === null) {
@@ -196,7 +206,9 @@ export const make = Effect.fnUntraced(function* (options: {
           .set({ hostname, originHost: origin.host, originPort: origin.port })
           .where(eq(t.id, tunnelId));
         options.notifier()?.updateTunnel({ tunnelId, hostname, origin });
-      }).pipe(clientError("put-configuration", { tunnelId })),
+      },
+      (effect, tunnelId) => effect.pipe(clientError("put-configuration", { tunnelId })),
+    ),
     getToken: (tunnelId) =>
       requireLiveRow(tunnelId).pipe(
         Effect.map(() =>
@@ -208,15 +220,17 @@ export const make = Effect.fnUntraced(function* (options: {
         ),
         clientError("get-token", { tunnelId }),
       ),
-    delete: (tunnelId) =>
-      Effect.gen(function* () {
+    delete: Effect.fn("SelfHostedTunnels.delete")(
+      function* (tunnelId: string) {
         yield* requireLiveRow(tunnelId);
         yield* db
           .update(t)
           .set({ deletedAt: yield* nowIso })
           .where(eq(t.id, tunnelId));
         options.notifier()?.closeTunnel(tunnelId);
-      }).pipe(clientError("delete", { tunnelId })),
+      },
+      (effect, tunnelId) => effect.pipe(clientError("delete", { tunnelId })),
+    ),
   };
 
   const wildcardRecordId = (hostname: string) => `wildcard:${hostname.toLowerCase()}`;
@@ -227,8 +241,8 @@ export const make = Effect.fnUntraced(function* (options: {
     deleteRecord: () => Effect.void,
   };
 
-  const authenticate = (token: string): Effect.Effect<TunnelAuthResult> =>
-    Effect.gen(function* () {
+  const authenticate = Effect.fn("SelfHostedTunnels.authenticate")(
+    function* (token: string) {
       const claims = decodeTunnelToken(token);
       if (
         claims === null ||
@@ -244,7 +258,9 @@ export const make = Effect.fnUntraced(function* (options: {
       return tunnel === null
         ? ({ status: "not_configured" } as const)
         : ({ status: "ok", tunnel } as const);
-    }).pipe(Effect.orDie);
+    },
+    (effect): Effect.Effect<TunnelAuthResult> => effect.pipe(Effect.orDie),
+  );
 
   const isTunnelHostname = (hostname: string) =>
     db

@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off - A raw socket proxy that runs outside the Effect runtime.
 import * as NodeHttp from "node:http";
 import type * as NodeNet from "node:net";
-import type { Duplex } from "node:stream";
+import type * as NodeStream from "node:stream";
 
 import { binaryMessageData, TunnelMux } from "@t3tools/shared/tunnelMux";
 import {
@@ -104,7 +104,11 @@ function offlineResponse(response: NodeHttp.ServerResponse) {
   response.end("This T3 Code environment is offline.\n");
 }
 
-function rejectUpgrade(socket: NodeNet.Socket | Duplex, status: number, message: string) {
+function rejectUpgrade(
+  socket: NodeNet.Socket | NodeStream.Duplex,
+  status: number,
+  message: string,
+) {
   socket.end(`HTTP/1.1 ${status} ${message}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
 }
 
@@ -249,7 +253,7 @@ export function makeTunnelGateway(options: TunnelGatewayOptions) {
   const forwardUpgrade = (
     session: ConnectorSession,
     request: NodeHttp.IncomingMessage,
-    socket: NodeNet.Socket | Duplex,
+    socket: NodeNet.Socket | NodeStream.Duplex,
     head: Buffer,
   ) => {
     const stream = session.mux.open();

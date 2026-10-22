@@ -923,3 +923,40 @@ describe("CloudManagedEndpointRuntime", () => {
     }),
   );
 });
+
+describe("CloudManagedEndpointRuntime with a self-hosted relay", () => {
+  it.effect(
+    "runs the built-in tunnel in process and asks for recovery when its token is refused",
+    () =>
+      Effect.gen(function* () {
+        const runtime = yield* buildCloudManagedEndpointRuntime(
+          ChildProcessSpawner.make(() => Effect.die("cloudflared must not start")),
+        );
+        const config: RelayManagedEndpointRuntimeConfig = {
+          providerKind: "t3_relay",
+          connectorToken: "not-a-tunnel-token",
+          tunnelId: "tunnel-1",
+        };
+        const recovery = yield* runtime.recoveryRequests.pipe(
+          Stream.take(1),
+          Stream.runCollect,
+          Effect.forkChild,
+        );
+
+        expect(yield* runtime.applyConfig(config)).toEqual({
+          status: "running",
+          providerKind: "t3_relay",
+          tunnelId: "tunnel-1",
+        });
+        expect(yield* runtime.inspectConnector).toEqual({
+          readyConnections: 0,
+          hostname: null,
+          protocol: "t3-relay",
+        });
+        expect(yield* Fiber.join(recovery)).toEqual([config]);
+
+        expect(yield* runtime.applyConfig(null)).toEqual({ status: "disabled" });
+        expect(yield* runtime.inspectConnector).toBeNull();
+      }),
+  );
+});

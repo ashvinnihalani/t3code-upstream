@@ -4,7 +4,7 @@ export const RelayClientStatusSchema = Schema.Union([
   Schema.Struct({
     status: Schema.Literal("available"),
     executablePath: Schema.String,
-    source: Schema.Literals(["override", "managed", "path"]),
+    source: Schema.Literals(["override", "managed", "path", "builtin"]),
     version: Schema.String,
   }),
   Schema.Struct({

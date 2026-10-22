@@ -1,6 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off - Exercises the raw socket gateway with real sockets.
 import * as NodeHttp from "node:http";
-import type { AddressInfo } from "node:net";
+import type * as NodeNet from "node:net";
 
 import {
   encodeTunnelToken,
@@ -18,12 +18,12 @@ const HOSTNAME = `desk1.${TUNNEL_DOMAIN}`;
 
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
 });
 
 function listen(server: NodeHttp.Server): Promise<number> {
   return new Promise((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve((server.address() as AddressInfo).port));
+    server.listen(0, "127.0.0.1", () => resolve((server.address() as NodeNet.AddressInfo).port));
   });
 }
 
@@ -69,15 +69,23 @@ async function startOrigin() {
 
 async function startGateway(authenticate: (token: string) => Promise<TunnelAuthResult>) {
   const changes: Array<[string, number]> = [];
+  const waiters: Array<{ count: number; resolve: () => void }> = [];
   const gateway = makeTunnelGateway({
     tunnelDomain: TUNNEL_DOMAIN,
     authenticate,
     isTunnelHostname: async (hostname) => hostname === HOSTNAME,
-    onConnectorsChanged: (tunnelId, count) => changes.push([tunnelId, count]),
+    onConnectorsChanged: (tunnelId, count) => {
+      changes.push([tunnelId, count]);
+      for (const waiter of waiters.filter((candidate) => candidate.count === count)) {
+        waiter.resolve();
+      }
+    },
   });
   const port = await listen(gateway.server);
   cleanups.push(() => gateway.close());
-  return { gateway, port, changes };
+  const connectorCount = (count: number) =>
+    new Promise<void>((resolve) => waiters.push({ count, resolve }));
+  return { gateway, port, changes, connectorCount };
 }
 
 function connectorFor(gatewayPort: number, tunnelId = "tun-1") {
@@ -233,12 +241,13 @@ describe("TunnelGateway", () => {
   });
 
   it("refuses a non-loopback origin from the gateway", async () => {
-    const { port } = await startGateway(async () => ({
+    const { port, connectorCount } = await startGateway(async () => ({
       status: "ok",
       tunnel: { tunnelId: "tun-1", hostname: HOSTNAME, origin: { host: "10.0.0.5", port: 80 } },
     }));
+    const disconnected = connectorCount(0);
     const connector = connectorFor(port);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await disconnected;
     expect(connector.events.some((event) => event.type === "connected")).toBe(false);
   });
 });

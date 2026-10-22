@@ -13,6 +13,7 @@ import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
 
 declare const __T3CODE_BUILD_RELAY_URL__: string | undefined;
+declare const __T3CODE_BUILD_RELAY_TUNNEL__: string | undefined;
 declare const __T3CODE_BUILD_CLERK_PUBLISHABLE_KEY__: string | undefined;
 declare const __T3CODE_BUILD_CLERK_CLI_OAUTH_CLIENT_ID__: string | undefined;
 declare const __T3CODE_BUILD_RELAY_CLIENT_OTLP_TRACES_URL__: string | undefined;
@@ -108,6 +109,25 @@ export function makeRelayUrlConfig(fallback = buildTimeRelayUrl) {
 }
 
 export const relayUrlConfig = makeRelayUrlConfig();
+
+/**
+ * Which tunnel connector the configured relay hands out: Cloudflare's, or the
+ * self-hosted relay's built-in one, which needs no cloudflared install.
+ */
+export const relayTunnelConfig = Config.Literals(
+  ["cloudflared", "builtin"],
+  "T3CODE_RELAY_TUNNEL",
+).pipe(
+  Config.withDefault(
+    readBuildTimeValue(
+      typeof __T3CODE_BUILD_RELAY_TUNNEL__ === "undefined"
+        ? undefined
+        : __T3CODE_BUILD_RELAY_TUNNEL__,
+    ) === "builtin"
+      ? ("builtin" as const)
+      : ("cloudflared" as const),
+  ),
+);
 
 export const hostedAppUrlConfig = makePublicValueConfig(
   "T3CODE_HOSTED_APP_URL",

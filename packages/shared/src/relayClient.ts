@@ -33,7 +33,8 @@ const CLOUDFLARED_PATH_ENV_NAME = "T3CODE_CLOUDFLARED_PATH";
 
 const CLOUDFLARED_DOWNLOAD_TIMEOUT = "10 minutes";
 
-export type RelayClientExecutableSource = "override" | "managed" | "path";
+/** `builtin`: a self-hosted relay's tunnel runs inside the server; no binary is needed. */
+export type RelayClientExecutableSource = "override" | "managed" | "path" | "builtin";
 
 export type RelayClientStatus =
   | {
@@ -624,3 +625,24 @@ export const makeCloudflaredRelayClient = Effect.fn("cloudflared.make")(function
 
 export const layerCloudflared = (options: CloudflaredRelayClientOptions) =>
   Layer.effect(RelayClient, makeCloudflaredRelayClient(options));
+
+const BUILTIN_RELAY_CLIENT: AvailableRelayClient = {
+  status: "available",
+  executablePath: "",
+  source: "builtin",
+  version: "builtin",
+};
+
+/** For self-hosted relays, whose tunnel connector runs in process instead of cloudflared. */
+export const layerBuiltinTunnel = Layer.succeed(
+  RelayClient,
+  RelayClient.of({
+    resolve: Effect.succeed(BUILTIN_RELAY_CLIENT),
+    install: Effect.succeed(BUILTIN_RELAY_CLIENT),
+    installWithProgress: (report) =>
+      report({ type: "complete", status: BUILTIN_RELAY_CLIENT }).pipe(
+        Effect.as(BUILTIN_RELAY_CLIENT),
+      ),
+    pruneManagedVersions: Effect.void,
+  }),
+);

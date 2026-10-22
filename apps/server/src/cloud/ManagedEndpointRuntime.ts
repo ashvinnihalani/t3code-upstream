@@ -19,6 +19,8 @@ import { HttpClient, HttpClientResponse } from "effect/http";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
+import * as BuiltinTunnelRuntime from "./BuiltinTunnelRuntime.ts";
+
 export type CloudManagedEndpointRuntimeStatus =
   | {
       readonly status: "disabled";
@@ -35,6 +37,12 @@ export type CloudManagedEndpointRuntimeStatus =
       readonly status: "running";
       readonly providerKind: "cloudflare_tunnel";
       readonly pid: number;
+      readonly tunnelId?: string;
+      readonly tunnelName?: string;
+    }
+  | {
+      readonly status: "running";
+      readonly providerKind: "t3_relay";
       readonly tunnelId?: string;
       readonly tunnelName?: string;
     }
@@ -783,9 +791,33 @@ export const make = Effect.gen(function* () {
     } satisfies ConnectorFacts;
   });
 
+  // A self-hosted relay hands out `t3_relay` configs, served by the in-process
+  // connector; at most one of the two connectors runs at a time.
+  const builtin = yield* BuiltinTunnelRuntime.make({
+    readinessChanges,
+    tunnelConnections,
+    recoveryRequests,
+  });
   const runtime = CloudManagedEndpointRuntime.of({
-    applyConfig,
-    inspectConnector,
+    applyConfig: (config) =>
+      config?.providerKind === "t3_relay"
+        ? applyConfig(null).pipe(
+            Effect.andThen(builtin.applyConfig(config)),
+            Effect.as<CloudManagedEndpointRuntimeStatus>({
+              status: "running",
+              providerKind: "t3_relay",
+              ...(config.tunnelId ? { tunnelId: config.tunnelId } : {}),
+              ...(config.tunnelName ? { tunnelName: config.tunnelName } : {}),
+            }),
+          )
+        : Effect.suspend(() =>
+            builtin.isActive()
+              ? builtin.applyConfig(null).pipe(Effect.andThen(applyConfig(config)))
+              : applyConfig(config),
+          ),
+    inspectConnector: Effect.suspend(() =>
+      builtin.isActive() ? builtin.inspectConnector : inspectConnector,
+    ),
     readinessChanged: Stream.fromQueue(readinessChanges),
     recoveryRequests: Stream.fromQueue(recoveryRequests),
     requestRecovery: (config) => Queue.offer(recoveryRequests, config).pipe(Effect.asVoid),

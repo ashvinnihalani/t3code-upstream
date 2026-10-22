@@ -7,7 +7,7 @@
 import * as NodeCrypto from "node:crypto";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- NodeHttpServer and the tunnel gateway take a Node server.
 import * as NodeHttp from "node:http";
-import * as NodeUrl from "node:url";
+import * as NodeURL from "node:url";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -81,7 +81,7 @@ import { relaySelfHostedSecrets, SELF_HOSTED_SCHEMA_SQL } from "./schema.ts";
 import * as SelfHostedTunnels from "./SelfHostedTunnels.ts";
 import { makeTunnelGateway, type TunnelGateway } from "./TunnelGateway.ts";
 
-const MIGRATIONS_FOLDER = NodeUrl.fileURLToPath(
+const MIGRATIONS_FOLDER = NodeURL.fileURLToPath(
   new URL("../../migrations/postgres", import.meta.url),
 );
 const QUEUE_WORKERS = 4;

@@ -96,6 +96,13 @@ export function isAllowedEndpointOrigin(input: {
   return input.origin.localHttpPort === endpointRequestPort(url);
 }
 
+/** Runtimes whose connector serves a relay-managed endpoint: cloudflared, or a self-hosted relay's built-in tunnel. */
+export function isManagedTunnelRuntime(
+  providerKind: RelayManagedEndpointRuntimeConfig["providerKind"],
+): boolean {
+  return providerKind === "cloudflare_tunnel" || providerKind === "t3_relay";
+}
+
 export function isSupportedLinkProviderKind(request: RelayLinkProofRequest): boolean {
   return (
     request.endpoint.providerKind === "cloudflare_tunnel" ||

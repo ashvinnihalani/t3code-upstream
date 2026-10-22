@@ -44,6 +44,7 @@ import {
   RELAY_URL_SECRET,
 } from "../cloud/config.ts";
 import { relayUrlConfig } from "../cloud/publicConfig.ts";
+import { layerRelayClient } from "../cloud/relayClientLayer.ts";
 import * as RelayTracing from "../cloud/relayTracing.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
@@ -156,6 +157,9 @@ interface CloudCliStatus {
 function formatRelayClientStatus(executable: RelayClient.RelayClientStatus): ReadonlyArray<string> {
   switch (executable.status) {
     case "available": {
+      if (executable.source === "builtin") {
+        return ["  Relay client: built in (self-hosted relay tunnel)"];
+      }
       const source =
         executable.source === "path"
           ? "PATH"
@@ -537,7 +541,7 @@ const runCloudCommand = Effect.fn("cloud.cli.run_cloud_command")(function* <A, E
       Layer.provide(ServerSecretStore.layer),
       Layer.provide(ExternalLauncher.layer),
     ),
-    RelayClient.layerCloudflared({ baseDir: config.baseDir }),
+    layerRelayClient({ baseDir: config.baseDir }),
     EnvironmentAuth.layerRuntime,
     CliService.layer(config),
     RelayTracing.layerHeadlessRelayClient,
@@ -551,8 +555,10 @@ const runCloudCommand = Effect.fn("cloud.cli.run_cloud_command")(function* <A, E
 
 const connectedAs = (identity: string | null): string => (identity ? ` as ${identity}` : "");
 
-function formatRelayClientReady(version: string): string {
-  return `✓ Relay client ready · cloudflared ${version}`;
+function formatRelayClientReady(client: RelayClient.AvailableRelayClient): string {
+  return client.source === "builtin"
+    ? "✓ Relay client ready · built-in tunnel"
+    : `✓ Relay client ready · cloudflared ${client.version}`;
 }
 
 const linkEnvironmentForConnect = Effect.fn("cloud.cli.link_environment")(function* (options: {
@@ -571,7 +577,7 @@ const linkEnvironmentForConnect = Effect.fn("cloud.cli.link_environment")(functi
       yield* Console.log("T3 Connect setup cancelled. The relay client was not installed.");
       return null;
     }
-    yield* Console.log(formatRelayClientReady(installed.value.version));
+    yield* Console.log(formatRelayClientReady(installed.value));
   }
 
   const identity = yield* authorizeCli(options);

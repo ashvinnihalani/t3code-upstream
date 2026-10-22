@@ -1,3 +1,4 @@
+// @effect-diagnostics globalTimers:off globalRandom:off - Socket-level reconnect loop that runs outside the Effect runtime.
 import * as NodeNet from "node:net";
 
 import { binaryMessageData, TunnelMux } from "./tunnelMux.ts";

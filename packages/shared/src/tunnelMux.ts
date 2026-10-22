@@ -1,4 +1,5 @@
-import { Duplex } from "node:stream";
+// @effect-diagnostics nodeBuiltinImport:off globalTimers:off - Node stream plumbing for raw tunnel bytes, outside the Effect runtime.
+import * as NodeStream from "node:stream";
 
 /**
  * Byte streams multiplexed over one WebSocket for the self-hosted T3 Connect
@@ -36,7 +37,7 @@ function encodeFrame(type: number, streamId: number, payload?: Uint8Array): Uint
   return frame;
 }
 
-class MuxStream extends Duplex {
+class MuxStream extends NodeStream.Duplex {
   localEnded = false;
   remoteEnded = false;
   remoteReset = false;
@@ -123,7 +124,7 @@ class MuxStream extends Duplex {
 
 export class TunnelMux {
   readonly #socket: TunnelMuxSocket;
-  readonly #onStream: ((stream: Duplex) => void) | undefined;
+  readonly #onStream: ((stream: NodeStream.Duplex) => void) | undefined;
   readonly #streams = new Map<number, MuxStream>();
   readonly #blocked = new Set<MuxStream>();
   #drainTimer: ReturnType<typeof setInterval> | null = null;
@@ -132,7 +133,7 @@ export class TunnelMux {
 
   constructor(
     socket: TunnelMuxSocket,
-    options: { readonly onStream?: (stream: Duplex) => void } = {},
+    options: { readonly onStream?: (stream: NodeStream.Duplex) => void } = {},
   ) {
     this.#socket = socket;
     this.#onStream = options.onStream;
@@ -142,7 +143,7 @@ export class TunnelMux {
     return this.#streams.size;
   }
 
-  open(): Duplex {
+  open(): NodeStream.Duplex {
     const stream = new MuxStream(this.#nextStreamId++, this);
     if (this.#nextStreamId > 0xffff_ffff) this.#nextStreamId = 1;
     this.#streams.set(stream.id, stream);

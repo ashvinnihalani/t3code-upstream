@@ -19,6 +19,7 @@ import { ChildProcessSpawner } from "effect/process";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { CLOUD_ENDPOINT_RUNTIME_CONFIG } from "./config.ts";
+import * as BuiltinTunnelRuntime from "./BuiltinTunnelRuntime.ts";
 import * as ManagedEndpointRuntime from "./ManagedEndpointRuntime.ts";
 
 // cloudflared finds the edge through the SRV record `_v2-origintunneld._tcp.argotunnel.com`,
@@ -241,7 +242,13 @@ const make = Effect.gen(function* () {
       edgeReachable: null,
       exitNode: null,
     };
-    if (connector === null || (endpoint?.kind === "status" && endpoint.status === 200)) {
+    // The edge probe and exit-node hint explain cloudflared failures; the
+    // built-in tunnel dials the relay over HTTPS instead.
+    if (
+      connector === null ||
+      connector.protocol === BuiltinTunnelRuntime.BUILTIN_TUNNEL_PROTOCOL ||
+      (endpoint?.kind === "status" && endpoint.status === 200)
+    ) {
       return facts;
     }
     const [edgeResults, exitNode] = yield* Effect.all(
