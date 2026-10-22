@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
+import * as RelayConfiguration from "../Config.ts";
 import * as RelayDb from "../db.ts";
 import {
   relayEnvironmentLinks,
@@ -52,6 +53,9 @@ export class ManagedTunnelLimits extends Context.Service<
 
 export const make = Effect.gen(function* () {
   const db = yield* RelayDb.RelayDb;
+  const defaultLimit =
+    (yield* RelayConfiguration.RelayConfiguration).managedTunnelDefaultLimit ??
+    DEFAULT_MANAGED_TUNNEL_LIMIT;
 
   return ManagedTunnelLimits.of({
     ensureCapacity: Effect.fn("relay.managed_tunnel_limits.ensure_capacity")(function* (input) {
@@ -70,7 +74,7 @@ export const make = Effect.gen(function* () {
               }),
           ),
         );
-      const maxTunnels = overrides[0]?.maxTunnels ?? DEFAULT_MANAGED_TUNNEL_LIMIT;
+      const maxTunnels = overrides[0]?.maxTunnels ?? defaultLimit;
 
       // Allocations already held for this environment are excluded so that
       // re-linking an environment the user already has a tunnel for stays

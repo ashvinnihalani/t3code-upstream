@@ -295,6 +295,14 @@
       "types": "./src/relayClient.ts",
       "import": "./src/relayClient.ts"
     },
+    "./tunnelMux": {
+      "types": "./src/tunnelMux.ts",
+      "import": "./src/tunnelMux.ts"
+    },
+    "./tunnelConnector": {
+      "types": "./src/tunnelConnector.ts",
+      "import": "./src/tunnelConnector.ts"
+    },
     "./relayTracing": {
       "types": "./src/relayTracing.ts",
       "import": "./src/relayTracing.ts"

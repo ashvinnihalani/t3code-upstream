@@ -247,6 +247,8 @@ export class ManagedEndpointTunnelClientError extends Schema.TaggedError<Managed
 export class ManagedEndpointTunnelClient extends Context.Service<
   ManagedEndpointTunnelClient,
   {
+    /** The connector a host runs for these tunnels; Cloudflare's when unset. */
+    readonly runtimeProviderKind?: RelayManagedEndpointRuntimeConfig["providerKind"];
     readonly get: (
       tunnelId: string,
     ) => Effect.Effect<ManagedEndpointTunnel, ManagedEndpointTunnelClientError>;
@@ -690,7 +692,7 @@ export const make = Effect.gen(function* () {
     return Option.some<ManagedEndpointProvisioningResult>({
       endpoint: managedEndpointForHostname(allocation.hostname),
       runtime: {
-        providerKind: "cloudflare_tunnel",
+        providerKind: tunnels.runtimeProviderKind ?? "cloudflare_tunnel",
         connectorToken,
         tunnelId,
         tunnelName: allocation.tunnelName,
@@ -1530,7 +1532,7 @@ export const make = Effect.gen(function* () {
       return {
         endpoint: managedEndpointForHostname(hostname),
         runtime: {
-          providerKind: "cloudflare_tunnel",
+          providerKind: tunnels.runtimeProviderKind ?? "cloudflare_tunnel",
           connectorToken,
           tunnelId: tunnel.id,
           tunnelName: tunnel.name,
